@@ -12,7 +12,8 @@
         "parameters": [
           { "name": "connectionId", "in": "path", "required": true, "type": "string", "x-ms-visibility": "internal" },
           { "name": "top", "in": "query", "type": "integer", "required": false, "description": "Max items to return", "default": 10 },
-          { "name": "filter", "in": "query", "type": "string", "required": false, "description": "OData filter" }
+          { "name": "filter", "in": "query", "type": "string", "required": false, "description": "OData filter" },
+          { "$ref": "#/parameters/orderby__odata" }
         ],
         "responses": {
           "200": {
@@ -215,6 +216,15 @@
         "content": { "type": "string", "format": "binary", "description": "File content" },
         "contentType": { "type": "string", "description": "MIME type" }
       }
+    }
+  },
+  "parameters": {
+    "orderby__odata": {
+      "name": "$orderby",
+      "in": "query",
+      "type": "string",
+      "required": false,
+      "description": "OData order by expression"
     }
   }
 }

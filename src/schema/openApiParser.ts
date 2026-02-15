@@ -9,6 +9,7 @@ export interface SwaggerDoc {
   basePath?: string;
   paths: Record<string, Record<string, any>>;
   definitions?: Record<string, any>;
+  parameters?: Record<string, any>;
 }
 
 export interface ParsedOperation {
@@ -70,6 +71,12 @@ export interface ParsedBodyProperty {
 
 const HTTP_METHODS = ["get", "post", "put", "patch", "delete"] as const;
 const MAX_DEPTH = 2;
+
+function resolveParamRef(ref: string, topLevelParams: Record<string, any> | undefined): any {
+  if (!ref || !topLevelParams) return undefined;
+  const key = ref.replace("#/parameters/", "");
+  return topLevelParams[key] ? JSON.parse(JSON.stringify(topLevelParams[key])) : undefined;
+}
 
 function resolveRef(ref: string, definitions: Record<string, any> | undefined): any {
   if (!ref || !definitions) return undefined;
@@ -157,7 +164,11 @@ export function parseOpenApiSpec(swagger: SwaggerDoc, apiName: string): ParsedOp
       const parameters: ParsedParameter[] = [];
       let requestBody: ParsedRequestBody | undefined;
 
-      for (const param of op.parameters ?? []) {
+      for (const rawParam of op.parameters ?? []) {
+        const param = rawParam.$ref
+          ? resolveParamRef(rawParam.$ref, swagger.parameters) ?? rawParam
+          : rawParam;
+        if (!param.name) continue;
         if (param.in === "body") {
           const schema = resolveSchema(param.schema, swagger.definitions);
           const requiredFields: string[] = schema?.required ?? [];

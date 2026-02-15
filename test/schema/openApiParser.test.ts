@@ -77,7 +77,7 @@ describe("parseOpenApiSpec", () => {
   describe("parameters", () => {
     it("parses GetMessages parameters correctly", () => {
       const op = ops.find((o) => o.operationId === "GetMessages")!;
-      expect(op.parameters.length).toBe(3);
+      expect(op.parameters.length).toBe(4);
 
       const connParam = op.parameters.find((p) => p.name === "connectionId")!;
       expect(connParam.in).toBe("path");
@@ -93,6 +93,16 @@ describe("parseOpenApiSpec", () => {
       const filterParam = op.parameters.find((p) => p.name === "filter")!;
       expect(filterParam.in).toBe("query");
       expect(filterParam.description).toBe("OData filter");
+    });
+
+    it("resolves $ref parameters from top-level parameters section", () => {
+      const op = ops.find((o) => o.operationId === "GetMessages")!;
+      const orderbyParam = op.parameters.find((p) => p.name === "$orderby")!;
+      expect(orderbyParam).toBeDefined();
+      expect(orderbyParam.in).toBe("query");
+      expect(orderbyParam.type).toBe("string");
+      expect(orderbyParam.required).toBe(false);
+      expect(orderbyParam.description).toBe("OData order by expression");
     });
 
     it("parses enum values for GetContacts status parameter", () => {
