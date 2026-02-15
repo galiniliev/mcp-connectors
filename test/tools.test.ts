@@ -55,18 +55,33 @@ describe("list_managed_apis", () => {
     configureManagedApiTools(mockServer as any, tokenProvider, armContext, userAgentProvider);
   });
 
-  it("returns managed APIs on success", async () => {
-    mockArmRequest.mockResolvedValue({ value: [{ name: "office365" }] });
+  it("returns only Microsoft first-party API names by default", async () => {
+    mockArmRequest.mockResolvedValue({
+      value: [
+        { name: "office365", properties: { connectionParameters: { token: { oAuthSettings: { properties: { IsFirstParty: "True" } } } } } },
+        { name: "teams", properties: { connectionParameters: { token: { oAuthSettings: { properties: { IsFirstParty: "True" } } } } } },
+        { name: "thirdparty", properties: { connectionParameters: { token: { oAuthSettings: { properties: { IsFirstParty: "False" } } } } } },
+        { name: "nooauth", properties: { connectionParameters: {} } },
+      ],
+    });
 
     const result = await toolHandlers["list_managed_apis"]({});
-    expect(mockArmRequest).toHaveBeenCalledWith(
-      "GET",
-      `/subscriptions/sub-123/providers/Microsoft.Web/locations/westus/managedApis`,
-      "test-token",
-      { userAgent: "TestAgent/1.0" }
-    );
-    expect(result.content[0].text).toContain("office365");
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed).toEqual(["office365", "teams"]);
     expect(result.isError).toBeUndefined();
+  });
+
+  it("returns all API names when microsoftOnly is false", async () => {
+    mockArmRequest.mockResolvedValue({
+      value: [
+        { name: "office365", properties: { connectionParameters: { token: { oAuthSettings: { properties: { IsFirstParty: "True" } } } } } },
+        { name: "thirdparty", properties: { connectionParameters: {} } },
+      ],
+    });
+
+    const result = await toolHandlers["list_managed_apis"]({ microsoftOnly: false });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed).toEqual(["office365", "thirdparty"]);
   });
 
   it("uses location override when provided", async () => {

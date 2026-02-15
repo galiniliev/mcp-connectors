@@ -35,7 +35,7 @@ All calls use `api-version=2016-06-01` unless noted:
 
 | Tool | Method | ARM Path |
 |------|--------|----------|
-| `list_managed_apis` | GET | `/subscriptions/{sub}/providers/Microsoft.Web/locations/{loc}/managedApis` |
+| `list_managed_apis` | GET | `/subscriptions/{sub}/providers/Microsoft.Web/locations/{loc}/managedApis` — returns names only; filters to Microsoft first-party (`IsFirstParty: "True"`) by default; `microsoftOnly: false` for all |
 | `put_connection` | PUT | `/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Web/connections/{name}` |
 | `list_connections` | GET | `/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Web/connections` |
 | `get_consent_link` | POST | `.../connections/{name}/listConsentLinks` (api-version `2018-07-01-preview`) |

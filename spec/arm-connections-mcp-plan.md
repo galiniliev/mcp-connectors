@@ -7,7 +7,7 @@ Create a local MCP server (Node/TS, runnable via `npx`) that:
 1. Uses **the same MSAL public-client auth pattern** as the official Azure DevOps MCP server, including the **same clientId** `0d50963b-7bb9-4fe7-94c7-a99af00b5136`.  
 2. Acquires **ARM** tokens and calls Azure Resource Manager with `Authorization: Bearer <token>`.
 3. Exposes MCP **tools** that:
-   - `listManagedApis` → enumerates supported connectors via `Microsoft.Web/locations/managedApis`
+   - `list_managed_apis` → enumerates supported connector names via `Microsoft.Web/locations/managedApis` (Microsoft first-party only by default)
    - `getConnectorSchema` → retrieves the OpenAPI/Swagger 2.0 schema for a specific connector (via `export=true`)
    - `putConnection` → `PUT Microsoft.Web/connections/{connectionName}` — creates/updates a connection resource
    - `listConsentLinks` → `POST .../connections/{connectionName}/listConsentLinks` — returns OAuth login URLs to authenticate a connection
@@ -50,7 +50,7 @@ arm-connections-mcp/
     auth.ts                  # ADO-style auth wrapper (MSAL + Azure Identity modes)
     arm.ts                   # ARM HTTP client (fetch wrapper, retries, correlation)
     tools/
-      managedApis.ts         # listManagedApis + getConnectorSchema tools
+      managedApis.ts         # list_managed_apis + getConnectorSchema tools
       connections.ts         # putConnection, listConnections, getConnection tools
       consent.ts             # listConsentLinks + confirmConsentCode tools
     logger.ts                # structured logger
@@ -173,19 +173,21 @@ Also: expose `server` metadata (name/version/icons).
 
 ## Tools
 
-### Tool 1: `listManagedApis`
+### Tool 1: `list_managed_apis`
 
 **Purpose:** show which connectors are supported in a region (`managedApis`).
 
 **ARM call:**  
 `GET /subscriptions/{subscriptionId}/providers/Microsoft.Web/locations/{location}/managedApis?api-version=2016-06-01`
 
-Returned payload includes managed API entries (name/type/id/properties). The tool filters and returns only the connector names.
+Returns only connector **names** (string array), filtered to Microsoft first-party connectors by default.
 
 **Implementation:**
-- Inputs: `{ subscriptionId, location }`
-- Output: list of connector **names only** (string array), e.g. `["office365", "teams", "sharepointonline", ...]`
-- **Filtering:** return only **Microsoft (first-party) APIs** by default — filter to entries whose `properties.metadata.source` is `"marketplace"` with `properties.metadata.brandColor` present, or more reliably, exclude entries where `properties.generalInformation.provider` is not Microsoft. If the API response does not expose a reliable provider field, use a curated allowlist of known Microsoft connector names as the initial filter.
+- Inputs: `{ location?, microsoftOnly? }`
+  - `location` — Azure region override (defaults to server's `--location` value)
+  - `microsoftOnly` — boolean, defaults to `true`; set to `false` to include all connectors
+- Output: JSON string array of connector names, e.g. `["office365", "teams", "sharepointonline", ...]`
+- **Filtering:** uses `properties.connectionParameters.token.oAuthSettings.properties.IsFirstParty === "True"` from the ARM response to identify Microsoft first-party connectors (~120 out of ~570+ total)
 - Rationale: the full managed API list includes hundreds of third-party connectors that add noise; starting with Microsoft-only keeps the output focused and useful for common scenarios (Teams, Office 365, SharePoint, Outlook, OneDrive, etc.)
 
 ### Tool 2: `getConnectorSchema`
@@ -335,7 +337,7 @@ Returned payload includes managed API entries (name/type/id/properties). The too
 
 The full flow for creating and authenticating a connection:
 
-1. **Discover connectors** → `listManagedApis` — find the connector you want (e.g. `office365`)
+1. **Discover connectors** → `list_managed_apis` — find the connector you want (e.g. `office365`); returns names only, Microsoft first-party by default
 2. **Inspect schema** → `getConnectorSchema` — (optional) get the OpenAPI spec to understand available operations
 3. **Create connection** → `putConnection` — creates the connection resource (starts in `Unauthenticated` state for OAuth connectors)
 4. **Get consent URL** → `listConsentLinks` — returns a login URL the user must open in a browser
@@ -354,7 +356,7 @@ The full flow for creating and authenticating a connection:
    - Confirm token is minted for `https://management.azure.com`
 
 2. **List managed APIs**
-   - call `listManagedApis` for `westus` (or chosen region)
+   - call `list_managed_apis` for `westus` (or chosen region)
    - verify results contain expected APIs
 
 3. **Create connection + authenticate**
@@ -387,7 +389,7 @@ The full flow for creating and authenticating a connection:
 - [ ] `auth.ts` copied/adapted from ADO MCP (same clientId)
 - [ ] `arm.ts` ARM client (retry/timeout/error shaping, supports GET/PUT/POST)
 - [ ] MCP server entrypoint + stdio transport
-- [ ] Tool: `listManagedApis`
+- [ ] Tool: `list_managed_apis`
 - [ ] Tool: `getConnectorSchema`
 - [ ] Tool: `putConnection`
 - [ ] Tool: `listConsentLinks`
