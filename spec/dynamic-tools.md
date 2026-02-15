@@ -36,6 +36,22 @@
 │     Body: { request: { method, path, body, queries, headers } }    │
 │  4. Return response as MCP text content                            │
 └─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ Auto-Reload on New Connection                                      │
+│                                                                    │
+│ User calls:  put_connection({ apiName: "slack", ... })             │
+│                                                                    │
+│ 1. PUT connection to ARM (existing static tool logic)              │
+│ 2. On success → detect apiName from the new connection             │
+│ 3. Fetch OpenAPI schema: GET managedApis/{apiName}?export=true     │
+│ 4. Parse → Filter → Register new MCP tools (incremental)           │
+│ 5. Emit MCP tools/list_changed notification to client              │
+│ 6. Return put_connection result + count of new tools registered    │
+│                                                                    │
+│ Note: Only registers tools for the NEW API. Existing tools         │
+│ remain untouched. No server restart required.                      │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -498,7 +514,97 @@ export async function registerDynamicTools(
 }
 ```
 
-### 5.2 Schema Fetching
+### 5.2 Incremental Registration for a Single Connection
+
+When `put_connection` creates a new connection, call this function to register
+tools for just the new API without touching existing tools. This avoids
+re-fetching schemas for already-registered APIs.
+
+```typescript
+export async function registerToolsForConnection(
+  server: McpServer,
+  connectionResponse: any,             // ARM PUT response
+  tokenProvider: () => Promise<string>,
+  armContext: ArmContext,
+  userAgentProvider: () => string,
+): Promise<{ registered: number; skipped: number; errors: string[] }> {
+  const stats = { registered: 0, skipped: 0, errors: [] as string[] };
+
+  // Extract connection info from the PUT response
+  const conn: ConnectionInfo = {
+    name: connectionResponse.name,
+    apiName: connectionResponse.properties.api.name,
+    displayName: connectionResponse.properties.displayName,
+    status: connectionResponse.properties.overallStatus ?? "Unknown",
+    apiId: connectionResponse.properties.api.id,
+  };
+
+  // Skip if this API's tools are already registered
+  const prefix = `${conn.apiName}_`;
+  const alreadyRegistered = Array.from(toolRegistry.keys()).some(k => k.startsWith(prefix));
+  if (alreadyRegistered) {
+    logger.info(`Tools for ${conn.apiName} already registered, skipping`);
+    return stats;
+  }
+
+  // Fetch schema and register tools (same logic as startup)
+  const token = await tokenProvider();
+  try {
+    const swagger = await fetchApiSchema(
+      conn.apiName, armContext, token, userAgentProvider()
+    );
+
+    if (!swagger) {
+      stats.errors.push(`${conn.apiName}: no swagger schema returned`);
+      return stats;
+    }
+
+    const allOps = parseOpenApiSpec(swagger, conn.apiName);
+    const filteredOps = filterOperations(allOps);
+
+    logger.info(`${conn.apiName}: ${allOps.length} total ops, ${filteredOps.length} after filtering`);
+
+    for (const op of filteredOps) {
+      const toolName = buildToolName(conn.apiName, op.operationId);
+      const zodSchema = generateZodSchema(op);
+      const description = buildToolDescription(conn, op);
+
+      try {
+        server.tool(toolName, description, zodSchema, async (params) => {
+          return await invokeDynamicTool(
+            conn, op, params, tokenProvider, armContext, userAgentProvider
+          );
+        });
+
+        toolRegistry.set(toolName, { connection: conn, operation: op });
+        stats.registered++;
+      } catch (regError) {
+        stats.errors.push(`${toolName}: ${regError}`);
+        stats.skipped++;
+      }
+    }
+  } catch (fetchError) {
+    stats.errors.push(`${conn.apiName}: schema fetch failed — ${fetchError}`);
+  }
+
+  // Notify MCP client that the tool list has changed
+  if (stats.registered > 0) {
+    await server.sendToolListChanged();
+    logger.info(`Notified client: ${stats.registered} new tools for ${conn.apiName}`);
+  }
+
+  logger.info(`Incremental registration for ${conn.apiName} complete`, stats);
+  return stats;
+}
+```
+
+> **`server.sendToolListChanged()`** — The MCP SDK provides this method to emit
+> a `notifications/tools/list_changed` notification. Clients that support dynamic
+> tool lists (e.g., VS Code Copilot) will re-fetch the tool list automatically.
+> The server must declare `capabilities: { tools: { listChanged: true } }` at
+> initialization (see §9).
+
+### 5.3 Schema Fetching
 
 ```typescript
 const schemaCache = new Map<string, object>();
@@ -527,7 +633,7 @@ async function fetchApiSchema(
 }
 ```
 
-### 5.3 Tool Naming Convention
+### 5.4 Tool Naming Convention
 
 ```typescript
 function buildToolName(apiName: string, operationId: string): string {
@@ -548,7 +654,7 @@ function buildToolDescription(conn: ConnectionInfo, op: ParsedOperation): string
 }
 ```
 
-### 5.4 Example: Generated Tools for Office 365
+### 5.5 Example: Generated Tools for Office 365
 
 Given the Office 365 OpenAPI spec with ~90 operations, after filtering:
 
@@ -574,7 +680,7 @@ Given the Office 365 OpenAPI spec with ~90 operations, after filtering:
 | `office365_set_auto_reply` | SetAutomaticRepliesSetting | Set automatic replies |
 | `office365_send_approval_email` | SendApprovalEmail | Send actionable email |
 
-### 5.5 Example: Generated Tools for Teams
+### 5.6 Example: Generated Tools for Teams
 
 | Generated Tool Name | Source operationId | Summary |
 |---------------------|-------------------|---------|
@@ -802,9 +908,16 @@ arm-connections-mcp/
 
 ```typescript
 async function main() {
-  // ... (existing setup: yargs, server, auth, armContext) ...
+  // ... (existing setup: yargs, auth, armContext) ...
 
-  // Register static tools (list_connections, put_connection, get_consent_link)
+  // Declare listChanged capability so clients know tools may change at runtime
+  const server = new McpServer(
+    { name: "arm-connections-mcp", version },
+    { capabilities: { tools: { listChanged: true } } }
+  );
+
+  // Register static tools — pass server reference so put_connection
+  // can trigger incremental dynamic tool registration
   configureStaticTools(server, authenticator, armContext, () => userAgentComposer.userAgent);
 
   // Register dynamic tools from connected APIs
@@ -827,9 +940,128 @@ async function main() {
 
 ---
 
-## 10. Meta-Tools
+## 10. Auto-Reload: `put_connection` Integration
 
-### 10.1 `list_dynamic_tools`
+When `put_connection` successfully creates a new connection, it automatically
+triggers incremental tool registration for that API. This keeps the tool list
+in sync without requiring manual `refresh_tools` calls or server restarts.
+
+### 10.1 Updated `put_connection` Handler
+
+In `src/tools/staticTools.ts`, the `put_connection` handler calls
+`registerToolsForConnection` after a successful PUT:
+
+```typescript
+import { registerToolsForConnection } from "./dynamicTools.js";
+
+server.tool(
+  "put_connection",
+  "Create or update an API connection in the resource group.",
+  { /* ... existing Zod schema ... */ },
+  async (params) => {
+    try {
+      const token = await tokenProvider();
+
+      // 1. PUT connection to ARM (existing logic)
+      const connectionPath =
+        `/subscriptions/${armContext.subscriptionId}` +
+        `/resourceGroups/${armContext.resourceGroup}` +
+        `/providers/Microsoft.Web/connections/${params.connectionName}`;
+
+      const putResult = await armRequest<any>("PUT", connectionPath, token, {
+        body: params.body,
+        userAgent: userAgentProvider(),
+      });
+
+      // 2. Auto-register dynamic tools for the new API
+      let toolStats = { registered: 0, skipped: 0, errors: [] as string[] };
+      try {
+        toolStats = await registerToolsForConnection(
+          server, putResult, tokenProvider, armContext, userAgentProvider
+        );
+      } catch (toolError) {
+        logger.warn(`Auto-registration failed for ${params.connectionName}`, { toolError });
+      }
+
+      // 3. Return combined result
+      const response: any = {
+        connection: putResult,
+      };
+
+      if (toolStats.registered > 0) {
+        response.dynamicTools = {
+          message: `${toolStats.registered} new tools registered for ${putResult.properties.api.name}`,
+          registered: toolStats.registered,
+        };
+      }
+
+      return {
+        content: [{ type: "text", text: JSON.stringify(response, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error}` }],
+        isError: true,
+      };
+    }
+  }
+);
+```
+
+### 10.2 Flow: What Happens When a User Creates a Connection
+
+```
+AI/User               MCP Server              ARM
+ │                        │                     │
+ │  put_connection        │                     │
+ │  { apiName: "slack" }  │                     │
+ │───────────────────────>│                     │
+ │                        │  PUT .../connections │
+ │                        │    /slack            │
+ │                        │────────────────────>│
+ │                        │  { name: "slack",    │
+ │                        │    properties: ... } │
+ │                        │<────────────────────│
+ │                        │                     │
+ │                        │  GET managedApis/    │
+ │                        │  slack?export=true   │
+ │                        │────────────────────>│
+ │                        │  { swagger: {...} }  │
+ │                        │<────────────────────│
+ │                        │                     │
+ │                        │  Parse + Filter +    │
+ │                        │  Register N tools    │
+ │                        │                     │
+ │                        │──► sendToolListChanged()
+ │                        │    (notify client)   │
+ │                        │                     │
+ │  { connection: {...},  │                     │
+ │    dynamicTools: {     │                     │
+ │      registered: 15    │                     │
+ │    }}                  │                     │
+ │<───────────────────────│                     │
+ │                        │                     │
+ │  (client refreshes     │                     │
+ │   tool list — new      │                     │
+ │   slack_* tools now    │                     │
+ │   available)           │                     │
+```
+
+### 10.3 Edge Cases
+
+| Scenario | Behavior |
+|----------|----------|
+| **API tools already registered** | `registerToolsForConnection` detects existing prefix, skips. Returns `registered: 0`. |
+| **Schema fetch fails** | Logs warning, returns connection result without `dynamicTools`. Tools can be added later via `refresh_tools`. |
+| **Connection is unauthenticated** | Tools are still registered (with ⚠️ description). On invocation, consent link is returned. |
+| **Multiple connections for same API** | Second `put_connection` for same API is a no-op for tools (prefix already exists). |
+| **Client doesn't support `listChanged`** | `sendToolListChanged()` is still called but ignored by the client. User can use `list_dynamic_tools` to see new tools. |
+
+---
+
+## 11. Meta-Tools
+
+### 11.1 `list_dynamic_tools`
 
 Lists all dynamically registered tools and their source connections.
 
@@ -859,7 +1091,7 @@ server.tool(
 );
 ```
 
-### 10.2 `refresh_tools`
+### 11.2 `refresh_tools`
 
 Force re-fetch schemas and re-register tools (e.g., after creating a new connection).
 
@@ -893,7 +1125,7 @@ server.tool(
 
 ---
 
-## 11. Key Microsoft OpenAPI Extensions Reference
+## 12. Key Microsoft OpenAPI Extensions Reference
 
 These extensions in the connector schemas drive tool generation behaviour:
 
@@ -912,9 +1144,9 @@ These extensions in the connector schemas drive tool generation behaviour:
 
 ---
 
-## 12. Error Handling & Edge Cases
+## 13. Error Handling & Edge Cases
 
-### 12.1 Schema Fetch Failures
+### 13.1 Schema Fetch Failures
 
 ```typescript
 // If schema fetch fails for one connection, continue with others
@@ -928,7 +1160,7 @@ try {
 }
 ```
 
-### 12.2 Tool Name Collisions
+### 13.2 Tool Name Collisions
 
 If two connections share the same `apiName` (unlikely but possible with custom
 connectors), append connection name:
@@ -948,7 +1180,7 @@ function buildToolName(apiName: string, operationId: string, connName?: string):
 }
 ```
 
-### 12.3 Large Schema Handling
+### 13.3 Large Schema Handling
 
 Some connectors (e.g., `office365` with 90+ operations) produce many tools.
 Strategies:
@@ -960,7 +1192,7 @@ Strategies:
 | **Lazy registration** | Register a `{api}_discover` meta-tool that lists operations; register individual tools on demand |
 | **Category grouping** | Group by `tags[]` from OpenAPI; register one tool per tag with sub-operation parameter |
 
-### 12.4 Binary/File Parameters
+### 13.4 Binary/File Parameters
 
 Operations with `format: "binary"` parameters (file uploads):
 
@@ -974,9 +1206,9 @@ if (param.format === "binary") {
 
 ---
 
-## 13. Testing Strategy
+## 14. Testing Strategy
 
-### 13.1 Unit Tests (`tests/schema/`)
+### 14.1 Unit Tests (`tests/schema/`)
 
 | Test | What It Validates |
 |------|-------------------|
@@ -985,15 +1217,16 @@ if (param.format === "binary") {
 | `filterOperations.test.ts` | Removes internal/trigger/deprecated/subscription ops correctly |
 | `deduplicateByFamily.test.ts` | Keeps latest revision per family; handles missing annotations |
 
-### 13.2 Integration Tests (`tests/tools/`)
+### 14.2 Integration Tests (`tests/tools/`)
 
 | Test | What It Validates |
 |------|-------------------|
 | `dynamicTools.test.ts` | Mock ARM responses → tools registered with correct names/schemas |
 | `invocation.test.ts` | Mock dynamicInvoke → correct request body built from params |
 | `authError.test.ts` | Unauthenticated connection → consent link returned |
+| `autoReload.test.ts` | put_connection → registerToolsForConnection called → new tools registered → sendToolListChanged emitted |
 
-### 13.3 Test Fixtures
+### 14.3 Test Fixtures
 
 Copy from `spec/ARM-Calls/`:
 
@@ -1007,9 +1240,9 @@ tests/fixtures/
 
 ---
 
-## 14. Sequence Diagrams
+## 15. Sequence Diagrams
 
-### 14.1 Startup — Dynamic Tool Registration
+### 15.1 Startup — Dynamic Tool Registration
 
 ```
 User                  MCP Server              ARM
@@ -1041,7 +1274,7 @@ User                  MCP Server              ARM
  │<───────────────────────│                     │
 ```
 
-### 14.2 Runtime — Dynamic Tool Invocation
+### 15.2 Runtime — Dynamic Tool Invocation
 
 ```
 AI/User               MCP Server              ARM (dynamicInvoke)
@@ -1070,19 +1303,62 @@ AI/User               MCP Server              ARM (dynamicInvoke)
  │<───────────────────────│                     │
 ```
 
+### 15.3 Auto-Reload — `put_connection` Creates New API
+
+```
+AI/User               MCP Server              ARM
+ │                        │                     │
+ │  put_connection        │                     │
+ │  { apiName: "slack" }  │                     │
+ │───────────────────────>│                     │
+ │                        │  PUT .../connections │
+ │                        │    /slack            │
+ │                        │────────────────────>│
+ │                        │  201 Created         │
+ │                        │  { name: "slack",    │
+ │                        │    properties:... }  │
+ │                        │<────────────────────│
+ │                        │                     │
+ │                        │  (auto-reload)       │
+ │                        │  GET managedApis/    │
+ │                        │  slack?export=true   │
+ │                        │────────────────────>│
+ │                        │  { swagger: {...} }  │
+ │                        │<────────────────────│
+ │                        │                     │
+ │                        │  Parse + Filter →    │
+ │                        │  Register 15 tools   │
+ │                        │                     │
+ │                        │──► sendToolListChanged()
+ │                        │                     │
+ │  { connection: {...},  │                     │
+ │    dynamicTools: {     │                     │
+ │      registered: 15 }} │                     │
+ │<───────────────────────│                     │
+ │                        │                     │
+ │  slack_post_message    │                     │
+ │  { channel, text }     │  (new tool works    │
+ │───────────────────────>│   immediately)      │
+ │                        │────────────────────>│
+ │                        │<────────────────────│
+ │  { ok: true }          │                     │
+ │<───────────────────────│                     │
+```
+
 ---
 
-## 15. Implementation Checklist
+## 16. Implementation Checklist
 
 | # | File | Purpose |
 |---|------|---------|
 | 1 | `src/schema/openApiParser.ts` | Parse Swagger 2.0 → `ParsedOperation[]` |
 | 2 | `src/schema/zodGenerator.ts` | `ParsedOperation` → Zod schemas for `server.tool()` |
-| 3 | `src/tools/dynamicTools.ts` | `registerDynamicTools()` + `invokeDynamicTool()` |
+| 3 | `src/tools/dynamicTools.ts` | `registerDynamicTools()` + `registerToolsForConnection()` + `invokeDynamicTool()` |
 | 4 | `src/tools/metaTools.ts` | `list_dynamic_tools` + `refresh_tools` |
-| 5 | `src/tools/staticTools.ts` | Rename from current `tools/connections.ts` + `managedApis.ts` |
-| 6 | `src/index.ts` | Update startup to call `registerDynamicTools()` |
+| 5 | `src/tools/staticTools.ts` | `put_connection` calls `registerToolsForConnection()` on success |
+| 6 | `src/index.ts` | Declare `tools: { listChanged: true }` capability; call `registerDynamicTools()` at startup |
 | 7 | `tests/schema/openApiParser.test.ts` | Parser unit tests against fixtures |
 | 8 | `tests/schema/zodGenerator.test.ts` | Zod schema generation tests |
 | 9 | `tests/tools/dynamicTools.test.ts` | Registration + invocation integration tests |
-| 10 | `tests/fixtures/` | Copy schema files from `spec/ARM-Calls/` |
+| 10 | `tests/tools/autoReload.test.ts` | put_connection → incremental registration → sendToolListChanged |
+| 11 | `tests/fixtures/` | Copy schema files from `spec/ARM-Calls/` |
