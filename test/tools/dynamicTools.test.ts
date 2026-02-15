@@ -387,7 +387,7 @@ describe("invokeDynamicTool", () => {
     await invokeDynamicTool(
       conn,
       op,
-      { $filter: "isRead eq false", $top: "10" },
+      { _filter: "isRead eq false", _top: "10" },
       tokenProvider,
       armContext,
       userAgentProvider,

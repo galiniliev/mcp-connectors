@@ -1,6 +1,28 @@
 import { z, ZodTypeAny } from "zod";
 import type { ParsedOperation, ParsedParameter, ParsedBodyProperty } from "../schema/openApiParser.js";
 
+/**
+ * Sanitize a parameter name to match the MCP/Claude tool input schema
+ * requirement: ^[a-zA-Z0-9_.-]{1,64}$
+ *
+ * Common offenders from connector OpenAPI specs:
+ *   $filter → _filter, $top → _top, $orderby → _orderby
+ *   x-ms-foo → x_ms_foo (hyphens are allowed by the pattern but kept consistent)
+ */
+export function sanitizeKey(name: string): string {
+  // Replace characters not matching [a-zA-Z0-9_.-] with underscores
+  let safe = name.replace(/[^a-zA-Z0-9_.-]/g, "_");
+  // Strip leading dots/hyphens (must start with alnum or underscore)
+  safe = safe.replace(/^[.-]+/, "");
+  // Collapse consecutive underscores
+  safe = safe.replace(/_+/g, "_");
+  // Truncate to 64 characters
+  safe = safe.slice(0, 64);
+  // Fallback if empty after sanitization
+  if (!safe) safe = "param";
+  return safe;
+}
+
 function zodForParam(param: ParsedParameter): ZodTypeAny {
   let schema: ZodTypeAny;
 
@@ -73,14 +95,16 @@ export function generateZodSchema(op: ParsedOperation): Record<string, ZodTypeAn
   // Path & query parameters (skip connectionId)
   for (const param of op.parameters) {
     if (param.name === "connectionId") continue;
-    result[param.name] = zodForParam(param);
+    const key = sanitizeKey(param.name);
+    result[key] = zodForParam(param);
   }
 
   // Request body — flatten top-level properties
   if (op.requestBody) {
     for (const [name, prop] of Object.entries(op.requestBody.properties)) {
       if (prop.format === "binary") continue;
-      const key = name in result ? `body_${name}` : name;
+      const sanitized = sanitizeKey(name);
+      const key = sanitized in result ? `body_${sanitized}` : sanitized;
       result[key] = zodForBodyProp(prop);
     }
   }

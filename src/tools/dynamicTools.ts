@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { armRequest, ArmContext } from "../arm.js";
 import { parseOpenApiSpec, filterOperations, ParsedOperation } from "../schema/openApiParser.js";
-import { generateZodSchema } from "../schema/zodGenerator.js";
+import { generateZodSchema, sanitizeKey } from "../schema/zodGenerator.js";
 import { logger } from "../logger.js";
 
 // ── Interfaces ──────────────────────────────────────────────────────────
@@ -68,14 +68,21 @@ export async function fetchApiSchema(
   }
 
   const path = `/subscriptions/${armContext.subscriptionId}/providers/Microsoft.Web/locations/${armContext.location}/managedApis/${apiName}`;
+  logger.debug(`Fetching API schema: GET ${path}?api-version=2016-06-01&export=true`);
   const result = await armRequest<any>("GET", path, token, {
     query: { export: "true" },
     userAgent,
   });
 
-  const swagger = result?.properties?.swagger ?? null;
+  const swagger = result ?? null;
   if (swagger) {
     schemaCache.set(apiName, swagger);
+  } else {
+    logger.warn(`No embedded swagger in response for ${apiName}`, {
+      hasProperties: !!result?.properties,
+      hasApiDefinitions: !!result?.properties?.apiDefinitions,
+      apiDefinitionUrl: result?.properties?.apiDefinitionUrl ?? null,
+    });
   }
   return swagger;
 }
@@ -233,7 +240,8 @@ export async function invokeDynamicTool(
 
     for (const param of op.parameters) {
       if (param.name === "connectionId") continue;
-      const val = params[param.name];
+      const sanitized = sanitizeKey(param.name);
+      const val = params[sanitized];
       if (val === undefined) continue;
 
       if (param.in === "path") {
@@ -248,8 +256,8 @@ export async function invokeDynamicTool(
     if (op.requestBody) {
       body = {};
       for (const [name, prop] of Object.entries(op.requestBody.properties)) {
-        const key = name in params ? name : `body_${name}` in params ? `body_${name}` : name;
-        const val = params[key] ?? params[name];
+        const sanitized = sanitizeKey(name);
+        const val = params[sanitized] ?? params[`body_${sanitized}`];
         if (val === undefined) continue;
 
         if ((prop.type === "object" || prop.type === "string (JSON)") && typeof val === "string") {
@@ -270,9 +278,9 @@ export async function invokeDynamicTool(
     const request: Record<string, unknown> = {
       method: op.method.toUpperCase(),
       path: invokePath,
-      headers: { "Content-Type": "application/json" },
     };
     if (body && Object.keys(body).length > 0) {
+      request.headers = { "Content-Type": "application/json" };
       request.body = body;
     }
     if (Object.keys(queries).length > 0) {

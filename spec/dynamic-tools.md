@@ -262,8 +262,25 @@ function deduplicateByFamily(ops: ParsedOperation[]): ParsedOperation[] {
 Convert each `ParsedOperation`'s parameters + request body into a Zod schema for
 `server.tool()` registration.
 
+**Key:** All parameter keys must be sanitized to match the MCP/Claude tool input
+schema requirement: `^[a-zA-Z0-9_.-]{1,64}$`. OpenAPI specs contain `$filter`,
+`$top`, etc. which must be transformed (e.g., `$filter` → `_filter`).
+
 ```typescript
 import { z, ZodTypeAny } from "zod";
+
+/**
+ * Sanitize a parameter name for MCP tool schema compatibility.
+ * Replaces invalid chars with underscores, collapses runs, truncates to 64.
+ * Examples: "$filter" → "_filter", "$top" → "_top"
+ */
+export function sanitizeKey(name: string): string {
+  let safe = name.replace(/[^a-zA-Z0-9_.-]/g, "_");
+  safe = safe.replace(/^[.-]+/, "");
+  safe = safe.replace(/_+/g, "_");
+  safe = safe.slice(0, 64);
+  return safe || "param";
+}
 
 export function generateZodSchema(
   op: ParsedOperation
@@ -273,14 +290,14 @@ export function generateZodSchema(
   // 1. Path & query parameters (skip connectionId — injected at runtime)
   for (const param of op.parameters) {
     if (param.name === "connectionId") continue;
-    schema[param.name] = paramToZod(param);
+    schema[sanitizeKey(param.name)] = paramToZod(param);
   }
 
   // 2. Request body — flatten top-level properties into schema
   if (op.requestBody) {
     for (const [propName, prop] of Object.entries(op.requestBody.properties)) {
-      // Prefix body props if they collide with param names
-      const key = schema[propName] ? `body_${propName}` : propName;
+      const sanitized = sanitizeKey(propName);
+      const key = schema[sanitized] ? `body_${sanitized}` : sanitized;
       schema[key] = bodyPropertyToZod(prop);
     }
   }
@@ -749,20 +766,21 @@ async function invokeDynamicTool(
     // 1. Build the invocation path — strip {connectionId} prefix
     let invocationPath = op.path.replace(/^\/{connectionId}/, "");
 
-    // 2. Substitute path parameters
+    // 2. Substitute path parameters (sanitized key for lookup, original for ARM)
     for (const param of op.parameters.filter(p => p.in === "path")) {
       if (param.name === "connectionId") continue;
-      const value = params[param.name];
+      const value = params[sanitizeKey(param.name)];
       if (value !== undefined) {
         invocationPath = invocationPath.replace(`{${param.name}}`, String(value));
       }
     }
 
-    // 3. Collect query parameters
+    // 3. Collect query parameters (sanitized key for lookup, original for ARM)
     const queries: Record<string, string> = {};
     for (const param of op.parameters.filter(p => p.in === "query")) {
-      if (params[param.name] !== undefined) {
-        queries[param.name] = String(params[param.name]);
+      const val = params[sanitizeKey(param.name)];
+      if (val !== undefined) {
+        queries[param.name] = String(val);
       }
     }
 
@@ -771,7 +789,8 @@ async function invokeDynamicTool(
     if (op.requestBody && ["post", "put", "patch"].includes(op.method)) {
       body = {};
       for (const [propName, prop] of Object.entries(op.requestBody.properties)) {
-        const paramKey = params[propName] !== undefined ? propName : `body_${propName}`;
+        const sanitized = sanitizeKey(propName);
+        const paramKey = params[sanitized] !== undefined ? sanitized : `body_${sanitized}`;
         if (params[paramKey] !== undefined) {
           // Parse JSON strings for object-type params
           let value = params[paramKey];

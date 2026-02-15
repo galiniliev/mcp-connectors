@@ -89,7 +89,7 @@ export async function armRequest<T>(
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      logger.debug(`ARM ${method} ${url.pathname}`, { attempt, correlationId });
+      logger.warn(`ARM ${method} ${url.pathname}${url.search}`, { attempt, correlationId });
 
       const response = await fetch(url.toString(), fetchOptions);
 
