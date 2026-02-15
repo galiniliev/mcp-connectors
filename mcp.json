@@ -1,0 +1,29 @@
+{
+  "inputs": [
+    {
+      "id": "azure_subscription",
+      "type": "promptString",
+      "description": "Azure subscription ID"
+    },
+    {
+      "id": "azure_rg",
+      "type": "promptString",
+      "description": "Azure resource group name"
+    }
+  ],
+  "servers": {
+    "armConnections": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y", "arm-connections-mcp",
+        "--subscriptionId", "${input:azure_subscription}",
+        "--resourceGroup", "${input:azure_rg}",
+        "--location", "westus"
+      ],
+      "env": {
+        "LOG_LEVEL": "debug"
+      }
+    }
+  }
+}

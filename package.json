@@ -1,0 +1,51 @@
+{
+  "name": "@galini-mcp/arm-connections",
+  "version": "0.1.0",
+  "description": "MCP server for managing Azure API connections via ARM",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "arm-connections-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "prebuild": "node -p \"'export const packageVersion = ' + JSON.stringify(require('./package.json').version) + ';\\n'\" > src/version.ts && prettier --write src/version.ts",
+    "build": "tsc && shx chmod +x dist/*.js",
+    "watch": "tsc --watch",
+    "dev": "tsx src/index.ts",
+    "inspect": "ALLOWED_ORIGINS=http://127.0.0.1:6274 npx @modelcontextprotocol/inspector node dist/index.js",
+    "start": "node dist/index.js",
+    "eslint": "eslint",
+    "format": "prettier --write .",
+    "format-check": "prettier --check .",
+    "test": "jest --coverage",
+    "clean": "shx rm -rf dist"
+  },
+  "dependencies": {
+    "@azure/identity": "^4.13.0",
+    "@azure/msal-node": "^5.0.4",
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "open": "^11.0.0",
+    "winston": "^3.19.0",
+    "yargs": "^18.0.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.2.3",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "jest": "^30.2.0",
+    "prettier": "^3.8.1",
+    "shx": "^0.4.0",
+    "ts-jest": "^29.4.6",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.55.0"
+  }
+}
