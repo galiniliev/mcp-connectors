@@ -33,8 +33,8 @@ Create a local MCP server (Node/TS, runnable via `npx`) that:
 ### 1) Initialize project
 
 ```bash
-mkdir arm-connections-mcp
-cd arm-connections-mcp
+mkdir mcp-connections
+cd mcp-connections
 npm init -y
 npm i @modelcontextprotocol/sdk zod
 npm i @azure/identity @azure/msal-node open
@@ -44,7 +44,7 @@ npm i -D typescript tsx @types/node eslint prettier
 ### 2) Package layout
 
 ```
-arm-connections-mcp/
+mcp-connections/
   src/
     index.ts                 # MCP server entrypoint (stdio)
     auth.ts                  # ADO-style auth wrapper (MSAL + Azure Identity modes)
@@ -71,10 +71,10 @@ Example:
 
 ```json
 {
-  "name": "@your-scope/arm-connections-mcp",
+  "name": "@your-scope/mcp-connections",
   "type": "module",
   "bin": {
-    "arm-connections-mcp": "dist/index.js"
+    "mcp-connections": "dist/index.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -352,7 +352,7 @@ The full flow for creating and authenticating a connection:
 ## Validation workflow (smoke tests)
 
 1. **Token acquisition**
-   - `arm-connections-mcp --authentication interactive --tenant <optional>`
+   - `mcp-connections --authentication interactive --tenant <optional>`
    - Confirm token is minted for `https://management.azure.com`
 
 2. **List managed APIs**
@@ -408,7 +408,7 @@ The full flow for creating and authenticating a connection:
     "armConnections": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@your-scope/arm-connections-mcp", "--subscription", "<sub>", "--resourceGroup", "<rg>", "--location", "westus"]
+      "args": ["-y", "@your-scope/mcp-connections", "--subscription", "<sub>", "--resourceGroup", "<rg>", "--location", "westus"]
     }
   }
 }

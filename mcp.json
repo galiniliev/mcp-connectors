@@ -16,7 +16,7 @@
       "type": "stdio",
       "command": "npx",
       "args": [
-        "-y", "arm-connections-mcp",
+        "-y", "mcp-connections",
         "--subscriptionId", "${input:azure_subscription}",
         "--resourceGroup", "${input:azure_rg}",
         "--location", "westus"

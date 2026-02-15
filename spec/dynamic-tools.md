@@ -888,7 +888,7 @@ if (isAuthError(error) && conn.status !== "Connected") {
 ## 8. Updated Package Layout
 
 ```
-arm-connections-mcp/
+mcp-connections/
 ├── src/
 │   ├── index.ts                    # CLI entry-point
 │   ├── auth.ts                     # MSAL/Azure-Identity auth
@@ -931,7 +931,7 @@ async function main() {
 
   // Declare listChanged capability so clients know tools may change at runtime
   const server = new McpServer(
-    { name: "arm-connections-mcp", version },
+    { name: "mcp-connections", version },
     { capabilities: { tools: { listChanged: true } } }
   );
 

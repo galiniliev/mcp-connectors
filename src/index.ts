@@ -17,7 +17,7 @@ function isGitHubCodespaceEnv(): boolean {
 const defaultAuthType = isGitHubCodespaceEnv() ? "azcli" : "interactive";
 
 const argv = yargs(hideBin(process.argv))
-  .scriptName("arm-connections-mcp")
+  .scriptName("mcp-connections")
   .usage("Usage: $0 --subscriptionId <sub> --resourceGroup <rg> [options]")
   .version(packageVersion)
   .option("subscriptionId", {

@@ -19,7 +19,7 @@ The `"bin"` field in `package.json` registers the CLI entry-point:
 
 ```jsonc
 "bin": {
-  "arm-connections-mcp": "dist/index.js"
+  "mcp-connections": "dist/index.js"
 }
 ```
 
@@ -37,13 +37,13 @@ npm link
 Then run from anywhere:
 
 ```bash
-npx arm-connections-mcp --subscriptionId <sub> --resourceGroup <rg>
+npx mcp-connections --subscriptionId <sub> --resourceGroup <rg>
 ```
 
 To unlink later:
 
 ```bash
-npm unlink -g @galini-mcp/arm-connections
+npm unlink -g @galini-mcp/mcp-connections
 ```
 
 ### Option 2: Direct `node` invocation
@@ -60,7 +60,7 @@ For production use, publish the package and consume via `npx`:
 
 ```bash
 npm publish --access public
-npx @galini-mcp/arm-connections --subscriptionId <sub> --resourceGroup <rg>
+npx @galini-mcp/mcp-connections --subscriptionId <sub> --resourceGroup <rg>
 ```
 
 ## VS Code MCP Client Configuration
@@ -88,7 +88,7 @@ Place an `mcp.json` in your project root or VS Code settings folder to register 
       "type": "stdio",
       "command": "npx",
       "args": [
-        "-y", "arm-connections-mcp",
+        "-y", "mcp-connections",
         "--subscriptionId", "${input:azure_subscription}",
         "--resourceGroup", "${input:azure_rg}",
         "--location", "westus"
@@ -123,9 +123,9 @@ Place an `mcp.json` in your project root or VS Code settings folder to register 
 
 | Method | Command | When to use |
 |--------|---------|-------------|
-| `npm link` | `npx arm-connections-mcp ...` | Local dev — works like a published package |
+| `npm link` | `npx mcp-connections ...` | Local dev — works like a published package |
 | Direct `node` | `node dist/index.js ...` | Quick test, no global symlink needed |
-| `npm publish` | `npx @galini-mcp/arm-connections ...` | Production — publishes to npm registry |
+| `npm publish` | `npx @galini-mcp/mcp-connections ...` | Production — publishes to npm registry |
 
 ## Scripts Reference
 

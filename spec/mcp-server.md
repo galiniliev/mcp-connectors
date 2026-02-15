@@ -9,7 +9,7 @@
 ### 1.1 Create the project
 
 ```bash
-mkdir arm-connections-mcp && cd arm-connections-mcp
+mkdir mcp-connections && cd mcp-connections
 npm init -y
 ```
 
@@ -30,7 +30,7 @@ npm i -D typescript tsx @types/node shx prettier eslint typescript-eslint eslint
 ## 2. Package Layout
 
 ```
-arm-connections-mcp/
+mcp-connections/
 ├── src/
 │   ├── index.ts              # CLI entry-point (yargs + McpServer + stdio)
 │   ├── auth.ts               # MSAL/Azure-Identity auth (mirrors ADO MCP)
@@ -58,13 +58,13 @@ Follow the ADO MCP conventions exactly:
 
 ```jsonc
 {
-  "name": "@galini-mcp/arm-connections",
+  "name": "@galini-mcp/mcp-connections",
   "version": "0.1.0",
   "description": "MCP server for managing Azure API connections via ARM",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "arm-connections-mcp": "dist/index.js"
+    "mcp-connections": "dist/index.js"
   },
   "files": ["dist"],
   "publishConfig": { "access": "public" },
@@ -86,7 +86,7 @@ Follow the ADO MCP conventions exactly:
 
 Key points:
 - `"type": "module"` — ESM throughout.
-- `"bin"` — enables `npx arm-connections-mcp`.
+- `"bin"` — enables `npx mcp-connections`.
 - `prebuild` — auto-generates `src/version.ts` from `package.json` version (same as ADO MCP).
 
 ---
@@ -151,7 +151,7 @@ function isGitHubCodespaceEnv(): boolean {
 const defaultAuthType = isGitHubCodespaceEnv() ? "azcli" : "interactive";
 
 const argv = yargs(hideBin(process.argv))
-  .scriptName("arm-connections-mcp")
+  .scriptName("mcp-connections")
   .usage("Usage: $0 --subscriptionId <sub> --resourceGroup <rg> [options]")
   .version(packageVersion)
   .option("subscriptionId", {
@@ -649,7 +649,7 @@ export function configureConnectionTools(
       "type": "stdio",
       "command": "npx",
       "args": [
-        "-y", "arm-connections-mcp",
+        "-y", "mcp-connections",
         "--subscriptionId", "${input:azure_subscription}",
         "--resourceGroup", "${input:azure_rg}",
         "--location", "westus"
@@ -715,7 +715,7 @@ module.exports = {
 | **Transport** | stdio | stdio |
 | **Logging** | Winston → stderr | Winston → stderr |
 | **User-Agent** | `AzureDevOps.MCP/{v}` | `ARMConnections.MCP/{v}` |
-| **bin name** | `mcp-server-azuredevops` | `arm-connections-mcp` |
+| **bin name** | `mcp-server-azuredevops` | `mcp-connections` |
 
 ---
 
@@ -744,7 +744,7 @@ module.exports = {
 
 ## 16. Validation Workflow
 
-1. **Token test** — Run `arm-connections-mcp --subscriptionId <sub> --resourceGroup <rg> --authentication interactive` and verify an ARM token is acquired.
+1. **Token test** — Run `mcp-connections --subscriptionId <sub> --resourceGroup <rg> --authentication interactive` and verify an ARM token is acquired.
 2. **List APIs** — Call `list_managed_apis`; verify response contains known connectors (office365, teams, sql, etc.).
 3. **Create connection** — Call `put_connection` with `managedApiName: "office365"`, verify resource appears in Azure Portal.
 4. **List connections** — Call `list_connections`; verify the created connection appears.

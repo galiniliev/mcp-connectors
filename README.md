@@ -36,7 +36,7 @@ node dist/index.js --subscriptionId <sub-id> --resourceGroup <rg-name>
 
 ```bash
 npm link
-npx arm-connections-mcp --subscriptionId <sub-id> --resourceGroup <rg-name>
+npx mcp-connections --subscriptionId <sub-id> --resourceGroup <rg-name>
 ```
 
 ### CLI Options
@@ -72,7 +72,7 @@ Add to your project's `mcp.json`:
     "armConnections": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "arm-connections-mcp", "--subscriptionId", "${input:azure_subscription}", "--resourceGroup", "${input:azure_rg}"],
+      "args": ["-y", "mcp-connections", "--subscriptionId", "${input:azure_subscription}", "--resourceGroup", "${input:azure_rg}"],
       "env": { "LOG_LEVEL": "debug" }
     }
   }
