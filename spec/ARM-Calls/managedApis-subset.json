@@ -1,0 +1,148 @@
+{
+  "value": [ 
+    {
+      "properties": {
+        "name": "teams",
+        "connectionParameters": {
+          "token": {
+            "type": "oauthSetting",
+            "oAuthSettings": {
+              "identityProvider": "aadcertificate",
+              "clientId": "4b55a631-6b07-4d07-a701-28f46d72f3df",
+              "scopes": [
+                "User.Read.All",
+                "Group.ReadWrite.All",
+                "Group.Read.All"
+              ],
+              "redirectMode": "GlobalPerConnector",
+              "redirectUrl": "https://global.consent.azure-apim.net/redirect/teams",
+              "properties": {
+                "IsFirstParty": "True",
+                "AzureActiveDirectoryResourceId": "https://graph.microsoft.com",
+                "IsOnbehalfofLoginSupported": true
+              },
+              "customParameters": {
+                "resourceUri": {
+                  "value": "https://graph.microsoft.com"
+                },
+                "loginUri": {
+                  "value": "https://login.windows.net"
+                },
+                "loginUriAAD": {
+                  "value": "https://login.windows.net"
+                }
+              }
+            }
+          },
+          "token:TenantId": {
+            "type": "string",
+            "metadata": {
+              "sourceType": "AzureActiveDirectoryTenant"
+            },
+            "uiDefinition": {
+              "displayName": "Tenant",
+              "description": "The tenant ID of for the Microsoft Entra ID application",
+              "constraints": {
+                "required": "false",
+                "hidden": "true"
+              }
+            }
+          }
+        },
+        "metadata": {
+          "source": "marketplace",
+          "brandColor": "",
+          "useNewApimVersion": true
+        },
+        "runtimeUrls": [
+          "https://logic-apis-westus.azure-apim.net/apim/teams"
+        ],
+        "generalInformation": {
+          "iconUrl": "https://conn-afd-prod-endpoint-bmc9bqahasf3grgk.b01.azurefd.net/releases/v1.0.1787/1.0.1787.4513/teams/icon.png",
+          "displayName": "Microsoft Teams",
+          "description": "Microsoft Teams enables you to get all your content, tools and conversations in the team workspace with Microsoft 365.",
+          "releaseTag": "Production",
+          "tier": "Standard"
+        },
+        "capabilities": [
+          "actions",
+          "triggers"
+        ],
+        "isExportSupported": true,
+        "isSecureByDefault": false,
+        "isDynamicConnectionAllowed": true
+      },
+      "id": "/subscriptions/00f9e387-4d2a-4d2d-8113-785d5827878f/providers/Microsoft.Web/locations/westus/managedApis/teams",
+      "name": "teams",
+      "type": "Microsoft.Web/locations/managedApis",
+      "location": "westus"
+    },
+    
+    {
+      "properties": {
+        "name": "office365",
+        "connectionParameters": {
+          "token": {
+            "type": "oauthSetting",
+            "oAuthSettings": {
+              "identityProvider": "aadcertificate",
+              "clientId": "7ab7862c-4c57-491e-8a45-d52a7e023983",
+              "scopes": [],
+              "redirectMode": "GlobalPerConnector",
+              "redirectUrl": "https://global.consent.azure-apim.net/redirect/office365",
+              "properties": {
+                "IsFirstParty": "True",
+                "AzureActiveDirectoryResourceId": "https://graph.microsoft.com",
+                "IsOnbehalfofLoginSupported": true
+              },
+              "customParameters": {
+                "resourceUri": {
+                  "value": "https://graph.microsoft.com"
+                },
+                "loginUriAAD": {
+                  "value": "https://login.windows.net"
+                },
+                "loginUri": {
+                  "value": "https://login.windows.net"
+                }
+              }
+            },
+            "uiDefinition": {
+              "displayName": "Log in with Office 365 Credentials",
+              "description": "Log in with Office 365 Credentials",
+              "tooltip": "Provide Office 365 Credentials",
+              "constraints": {
+                "required": "true"
+              }
+            }
+          }
+        },
+        "metadata": {
+          "source": "marketplace",
+          "brandColor": "#0078D4",
+          "useNewApimVersion": true
+        },
+        "runtimeUrls": [
+          "https://logic-apis-westus.azure-apim.net/apim/office365"
+        ],
+        "generalInformation": {
+          "iconUrl": "https://conn-afd-prod-endpoint-bmc9bqahasf3grgk.b01.azurefd.net/releases/v1.0.1788/1.0.1788.4524/office365/icon.png",
+          "displayName": "Office 365 Outlook",
+          "description": "Microsoft Office 365 is a cloud-based service that is designed to help meet your organization's needs for robust security, reliability, and user productivity.",
+          "releaseTag": "Production",
+          "tier": "Standard"
+        },
+        "capabilities": [
+          "actions"
+        ],
+        "isExportSupported": true,
+        "isSecureByDefault": false,
+        "isDynamicConnectionAllowed": true
+      },
+      "id": "/subscriptions/00f9e387-4d2a-4d2d-8113-785d5827878f/providers/Microsoft.Web/locations/westus/managedApis/office365",
+      "name": "office365",
+      "type": "Microsoft.Web/locations/managedApis",
+      "location": "westus"
+    }
+   ]
+}
