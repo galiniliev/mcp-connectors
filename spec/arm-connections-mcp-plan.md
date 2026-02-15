@@ -8,13 +8,23 @@ Create a local MCP server (Node/TS, runnable via `npx`) that:
 2. Acquires **ARM** tokens and calls Azure Resource Manager with `Authorization: Bearer <token>`.
 3. Exposes MCP **tools** that:
    - `listManagedApis` → enumerates supported connectors via `Microsoft.Web/locations/managedApis`
-   - `putConnection` → `PUT Microsoft.Web/connections/{connectionName}`
+   - `getConnectorSchema` → retrieves the OpenAPI/Swagger 2.0 schema for a specific connector (via `export=true`)
+   - `putConnection` → `PUT Microsoft.Web/connections/{connectionName}` — creates/updates a connection resource
+   - `listConsentLinks` → `POST .../connections/{connectionName}/listConsentLinks` — returns OAuth login URLs to authenticate a connection
+   - `confirmConsentCode` → `POST .../connections/{connectionName}/confirmConsentCode` — completes the OAuth flow after user login
+   - `listConnections` → `GET .../connections/` — lists all connections in a resource group with their status
+   - `getConnection` → `GET .../connections/{connectionName}` — gets a specific connection's status and details
 
 > Sources (for reference while implementing):  
 > - ADO MCP auth implementation + clientId: `src/auth.ts` in microsoft/azure-devops-mcp  
 > - Managed APIs list endpoint: `GET .../providers/Microsoft.Web/locations/{location}/managedApis?api-version=2016-06-01`  
+> - Connector OpenAPI schema: `GET .../providers/Microsoft.Web/locations/{location}/managedApis/{apiName}?api-version=2016-06-01&export=true`  
 > - Connections create/update: `PUT .../providers/Microsoft.Web/connections/{connectionName}?api-version=2016-06-01`  
-> - ARM resource schema for `Microsoft.Web/connections` (apiVersion `2016-06-01`)
+> - Consent links: `POST .../connections/{connectionName}/listConsentLinks?api-version=2018-07-01-preview`  
+> - Confirm consent: `POST .../connections/{connectionName}/confirmConsentCode?api-version=2016-06-01`  
+> - List connections: `GET .../resourceGroups/{rg}/providers/Microsoft.Web/connections/?api-version=2016-06-01`  
+> - ARM resource schema for `Microsoft.Web/connections` (apiVersion `2016-06-01`)  
+> - Sample ARM responses available in `spec/ARM-Calls/` (managedApis-subset.json, office365-conn.json, teams-connection-response.json, listConnections.json)
 
 ---
 
@@ -40,8 +50,9 @@ arm-connections-mcp/
     auth.ts                  # ADO-style auth wrapper (MSAL + Azure Identity modes)
     arm.ts                   # ARM HTTP client (fetch wrapper, retries, correlation)
     tools/
-      managedApis.ts         # listManagedApis tool
-      connections.ts         # putConnection tool
+      managedApis.ts         # listManagedApis + getConnectorSchema tools
+      connections.ts         # putConnection, listConnections, getConnection tools
+      consent.ts             # listConsentLinks + confirmConsentCode tools
     logger.ts                # structured logger
     version.ts               # package version helper
   mcp.json                   # example client config (VS Code)
@@ -131,7 +142,7 @@ Pseudo:
 
 ```ts
 export async function armRequest<T>(
-  method: "GET" | "PUT",
+  method: "GET" | "PUT" | "POST",
   path: string,
   token: string,
   query: Record<string,string>,
@@ -169,15 +180,27 @@ Also: expose `server` metadata (name/version/icons).
 **ARM call:**  
 `GET /subscriptions/{subscriptionId}/providers/Microsoft.Web/locations/{location}/managedApis?api-version=2016-06-01`
 
-Returned payload includes managed API entries (name/type/id/properties), which you’ll return as-is (or lightly shaped) to the client.
+Returned payload includes managed API entries (name/type/id/properties), which you'll return as-is (or lightly shaped) to the client.
 
 **Implementation:**
 - Inputs: `{ subscriptionId, location }`
-- Output: list of `{ name, id, location, properties }` (or raw)
+- Output: list of `{ name, id, location, properties.generalInformation }` (shaped for readability)
 
-### Tool 2: `putConnection`
+### Tool 2: `getConnectorSchema`
 
-**Purpose:** create/update an API connection resource.
+**Purpose:** retrieve the full OpenAPI/Swagger 2.0 specification for a specific connector, which describes all available actions, triggers, parameters, and response models.
+
+**ARM call:**  
+`GET /subscriptions/{subscriptionId}/providers/Microsoft.Web/locations/{location}/managedApis/{apiName}?api-version=2016-06-01&export=true`
+
+**Implementation:**
+- Inputs: `{ subscriptionId, location, apiName }`
+- Output: raw Swagger 2.0 JSON (can be large, e.g. 338 KB for Teams, 672 KB for Office365)
+- Note: The `export=true` query parameter is what triggers the OpenAPI schema to be included in the response (without it, only metadata is returned)
+
+### Tool 3: `putConnection`
+
+**Purpose:** create or update an API connection resource. After creation the connection will be in `Unauthenticated` state — use `listConsentLinks` + `confirmConsentCode` to complete OAuth authentication.
 
 **ARM call:**  
 `PUT /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Web/connections/{connectionName}?api-version=2016-06-01`
@@ -187,11 +210,11 @@ Returned payload includes managed API entries (name/type/id/properties), which y
 - `resourceGroupName`
 - `connectionName`
 - `location`
-- `managedApiId` (resource ID from `listManagedApis`, typically includes `/locations/{loc}/managedApis/{apiName}`)
-- `displayName`
-- `parameterValues` (object; varies by connector)
+- `managedApiName` — the connector name (e.g. `office365`, `teams`); the tool will construct the full managedApiId: `/subscriptions/{sub}/providers/Microsoft.Web/locations/{loc}/managedApis/{apiName}`
+- `displayName` (optional; defaults to `connectionName`)
+- `parameterValues` (object; varies by connector — only needed for connectors that don't use OAuth, e.g. SQL Server connection strings)
 
-**Body shape (baseline):**
+**Body shape (baseline — for OAuth connectors like Teams/Office365):**
 ```json
 {
   "location": "westus",
@@ -199,17 +222,126 @@ Returned payload includes managed API entries (name/type/id/properties), which y
     "displayName": "my-conn",
     "api": {
       "id": "/subscriptions/.../providers/Microsoft.Web/locations/westus/managedApis/office365"
-    },
-    "parameterValues": {
-      "...": "..."
     }
   }
 }
 ```
 
+**Expected response:** connection resource with `overallStatus: "Error"` and `statuses[].error.code: "Unauthenticated"` (for OAuth connectors). See `spec/ARM-Calls/office365-conn.json` for full example.
+
 **Trade-off: parameter schema**
 - ARM does **not** give you a strongly typed schema per connector at compile-time.
+- The `connectionParameters` structure in the managedApi response (see `managedApis-subset.json`) describes what parameters each connector needs and whether they use `oauthSetting` or direct values.
 - Decision: return errors verbatim and require the caller (human/agent) to provide correct `parameterValues` based on the connector.
+
+### Tool 4: `listConsentLinks`
+
+**Purpose:** after creating a connection, get the OAuth consent URL(s) that the user must visit to authenticate the connection. This is the critical step that transitions a connection from `Unauthenticated` to `Connected`.
+
+**ARM call:**  
+`POST /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Web/connections/{connectionName}/listConsentLinks?api-version=2018-07-01-preview`
+
+> **Note:** This endpoint uses `api-version=2018-07-01-preview`, **not** `2016-06-01`.
+
+**Request body:**
+```json
+{
+  "parameters": [
+    {
+      "objectId": "<user-or-service-principal-object-id>",
+      "parameterName": "token",
+      "redirectUrl": "http://localhost:8080",
+      "tenantId": "<azure-ad-tenant-id>"
+    }
+  ]
+}
+```
+
+**Parameter details:**
+- `objectId` — the Azure AD object ID of the user who will own the connection (can be obtained from `az ad signed-in-user show --query id -o tsv`)
+- `parameterName` — must match a `connectionParameters` key of type `oauthSetting` from the managedApi definition (typically `"token"`)
+- `redirectUrl` — where the OAuth flow will redirect after consent; use `http://localhost:8080` for local dev, or the Azure portal redirect URL for portal-based auth
+- `tenantId` — the Azure AD tenant ID
+
+**Response shape:**
+```json
+{
+  "value": [
+    {
+      "link": "https://logic-apis-westus.consent.azure-apim.net/login?data=...",
+      "firstPartyLoginUri": "https://logic-apis-westus.consent.azure-apim.net/firstPartyLogin?data=...",
+      "displayName": null,
+      "status": "Unauthenticated"
+    }
+  ]
+}
+```
+
+**Implementation:**
+- Inputs: `{ subscriptionId, resourceGroupName, connectionName, objectId, tenantId, redirectUrl? }`
+- Output: the consent link(s) — the `link` field is the URL the user must open in a browser
+- The consent link has a short TTL (~10 minutes) — surface this to the user
+- After the user authenticates, the redirect URL will receive a `code` query parameter needed for `confirmConsentCode`
+
+### Tool 5: `confirmConsentCode`
+
+**Purpose:** complete the OAuth authentication flow by confirming the consent code received after the user authenticates via the consent link.
+
+**ARM call:**  
+`POST /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Web/connections/{connectionName}/confirmConsentCode?api-version=2016-06-01`
+
+**Request body:**
+```json
+{
+  "objectId": "<user-object-id>",
+  "tenantId": "<azure-ad-tenant-id>",
+  "code": "<code-from-redirect>"
+}
+```
+
+**Implementation:**
+- Inputs: `{ subscriptionId, resourceGroupName, connectionName, objectId, tenantId, code }`
+- Output: confirmation status
+- After success, the connection's `overallStatus` changes from `Error` to `Connected`
+
+### Tool 6: `listConnections`
+
+**Purpose:** list all API connections in a resource group with their current status (Connected, Error/Unauthenticated, etc.).
+
+**ARM call:**  
+`GET /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Web/connections/?api-version=2016-06-01`
+
+**Implementation:**
+- Inputs: `{ subscriptionId, resourceGroupName }`
+- Output: list of connections with `name`, `overallStatus`, `authenticatedUser`, `api.displayName`, and `connectionState`
+- See `spec/ARM-Calls/listConnections.json` for a full example showing both a `Connected` (office365) and `Error` (teams) connection
+
+### Tool 7: `getConnection`
+
+**Purpose:** get details for a specific connection, including authentication status and test endpoints.
+
+**ARM call:**  
+`GET /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Web/connections/{connectionName}?api-version=2016-06-01`
+
+**Implementation:**
+- Inputs: `{ subscriptionId, resourceGroupName, connectionName }`
+- Output: full connection resource including `overallStatus`, `statuses[]`, `authenticatedUser`, `testLinks[]`, `testRequests[]`
+
+---
+
+## Connection lifecycle (end-to-end flow)
+
+The full flow for creating and authenticating a connection:
+
+1. **Discover connectors** → `listManagedApis` — find the connector you want (e.g. `office365`)
+2. **Inspect schema** → `getConnectorSchema` — (optional) get the OpenAPI spec to understand available operations
+3. **Create connection** → `putConnection` — creates the connection resource (starts in `Unauthenticated` state for OAuth connectors)
+4. **Get consent URL** → `listConsentLinks` — returns a login URL the user must open in a browser
+5. **User authenticates** → user opens the consent link, signs in, and is redirected with a `code` parameter
+6. **Confirm consent** → `confirmConsentCode` — exchanges the consent code to complete authentication
+7. **Verify** → `getConnection` or `listConnections` — confirm `overallStatus` is `Connected`
+
+> **Note:** For OAuth-based connectors (Teams, Office365, etc.), the `connectionParameters` in the managedApi response will have a parameter of `type: "oauthSetting"` — these always require the consent flow. The `oAuthSettings` object contains the `identityProvider`, `clientId`, `scopes`, and `redirectUrl` that the consent service uses internally.
 
 ---
 
@@ -223,10 +355,15 @@ Returned payload includes managed API entries (name/type/id/properties), which y
    - call `listManagedApis` for `westus` (or chosen region)
    - verify results contain expected APIs
 
-3. **Create connection**
-   - choose a managed API and create a connection with known-good `parameterValues`
-   - validate resource exists in Azure Portal / ARM `GET`
+3. **Create connection + authenticate**
+   - `putConnection` for `office365` → verify response has `overallStatus: "Error"` (Unauthenticated)
+   - `listConsentLinks` → verify consent URL is returned
+   - Open consent link in browser, authenticate, capture redirect code
+   - `confirmConsentCode` → verify success
+   - `getConnection` → verify `overallStatus: "Connected"`
 
+4. **List connections**
+   - `listConnections` → verify both Connected and Unauthenticated connections are listed correctly
 ---
 
 ## Operational hardening (minimum bar)
@@ -246,11 +383,16 @@ Returned payload includes managed API entries (name/type/id/properties), which y
 
 - [ ] TypeScript project scaffolding + `bin` entry for `npx`
 - [ ] `auth.ts` copied/adapted from ADO MCP (same clientId)
-- [ ] `arm.ts` ARM client (retry/timeout/error shaping)
+- [ ] `arm.ts` ARM client (retry/timeout/error shaping, supports GET/PUT/POST)
 - [ ] MCP server entrypoint + stdio transport
 - [ ] Tool: `listManagedApis`
+- [ ] Tool: `getConnectorSchema`
 - [ ] Tool: `putConnection`
-- [ ] README with sample `mcp.json` + example tool calls
+- [ ] Tool: `listConsentLinks`
+- [ ] Tool: `confirmConsentCode`
+- [ ] Tool: `listConnections`
+- [ ] Tool: `getConnection`
+- [ ] README with sample `mcp.json` + example tool calls + connection lifecycle walkthrough
 
 ---
 
