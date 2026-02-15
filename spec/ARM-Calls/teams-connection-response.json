@@ -1,0 +1,56 @@
+{
+  "kind": "V1",
+  "properties": {
+    "displayName": "teams",
+    "connectionId": "65574cbdff6a4380ad1b47f47c6da084",
+    "authenticatedUser": {},
+    "overallStatus": "Error",
+    "statuses": [
+      {
+        "status": "Error",
+        "target": "token",
+        "error": {
+          "code": "Unauthenticated",
+          "message": "This connection is not authenticated."
+        }
+      }
+    ],
+    "connectionState": "Enabled",
+    "customParameterValues": {},
+    "nonSecretParameterValues": {},
+    "createdTime": "2026-02-15T01:55:17.5111637Z",
+    "changedTime": "2026-02-15T01:55:17.5111637Z",
+    "api": {
+      "name": "teams",
+      "displayName": "Microsoft Teams",
+      "description": "Microsoft Teams enables you to get all your content, tools and conversations in the team workspace with Microsoft 365.",
+      "iconUri": "https://conn-afd-prod-endpoint-bmc9bqahasf3grgk.b01.azurefd.net/releases/v1.0.1787/1.0.1787.4513/teams/icon.png",
+      "brandColor": "",
+      "category": "Standard",
+      "id": "/subscriptions/00f9e387-4d2a-4d2d-8113-785d5827878f/providers/Microsoft.Web/locations/westus/managedApis/teams",
+      "type": "Microsoft.Web/locations/managedApis"
+    },
+    "testLinks": [
+      {
+        "requestUri": "https://management.azure.com:443/subscriptions/00f9e387-4d2a-4d2d-8113-785d5827878f/resourceGroups/mcp-connectors/providers/Microsoft.Web/connections/teams/extensions/proxy/beta/me/teamwork?api-version=2016-06-01",
+        "method": "get"
+      }
+    ],
+    "testRequests": [
+      {
+        "body": {
+          "request": {
+            "method": "get",
+            "path": "beta/me/teamwork"
+          }
+        },
+        "requestUri": "https://management.azure.com:443/subscriptions/00f9e387-4d2a-4d2d-8113-785d5827878f/resourceGroups/mcp-connectors/providers/Microsoft.Web/connections/teams/dynamicInvoke?api-version=2016-06-01",
+        "method": "POST"
+      }
+    ]
+  },
+  "id": "/subscriptions/00f9e387-4d2a-4d2d-8113-785d5827878f/resourceGroups/mcp-connectors/providers/Microsoft.Web/connections/teams",
+  "name": "teams",
+  "type": "Microsoft.Web/connections",
+  "location": "westus"
+}

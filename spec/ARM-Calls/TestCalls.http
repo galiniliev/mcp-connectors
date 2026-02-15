@@ -1,0 +1,21 @@
+GET /subscriptions/00f9e387-4d2a-4d2d-8113-785d5827878f/providers/Microsoft.Web/locations/westus/managedApis?api-version=2016-06-01
+
+###
+
+POST /subscriptions/00f9e387-4d2a-4d2d-8113-785d5827878f/resourceGroups/mcp-connectors/providers/Microsoft.Web/connections/teams/getConsentlinks?api-version=2016-06-01
+
+
+###
+
+POST https://management.azure.com/subscriptions/00f9e387-4d2a-4d2d-8113-785d5827878f/resourceGroups/mcp-connectors/providers/Microsoft.Web/connections/office365/listConsentLinks?api-version=2018-07-01-preview
+
+{
+    "parameters": [
+        {
+            "objectId": "c9e3cc5d-a6a7-43f7-8686-edefa493590e",
+            "parameterName": "token",
+            "redirectUrl": "https://ema.hosting.portal.azure.net/ema/Content/2.60127.1.3/Html/authredirectv2.html?pid=msla-logicapps-oauthpopup&trustedAuthority=https%3A%2F%2Fms.portal.azure.com&origin=https%3A%2F%2Fsandbox-2.reactblade-ms.portal.azure.net",
+            "tenantId": "72f988bf-86f1-41af-91ab-2d7cd011db47"
+        }
+    ]
+}

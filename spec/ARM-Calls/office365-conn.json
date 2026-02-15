@@ -1,0 +1,56 @@
+{
+  "kind": "V1",
+  "properties": {
+    "displayName": "office365",
+    "connectionId": "d1f3b2cb3dc4442c8f46ea30991dd656",
+    "authenticatedUser": {},
+    "overallStatus": "Error",
+    "statuses": [
+      {
+        "status": "Error",
+        "target": "token",
+        "error": {
+          "code": "Unauthenticated",
+          "message": "This connection is not authenticated."
+        }
+      }
+    ],
+    "connectionState": "Enabled",
+    "customParameterValues": {},
+    "nonSecretParameterValues": {},
+    "createdTime": "2026-02-15T01:58:35.3708892Z",
+    "changedTime": "2026-02-15T01:58:35.3708892Z",
+    "api": {
+      "name": "office365",
+      "displayName": "Office 365 Outlook",
+      "description": "Microsoft Office 365 is a cloud-based service that is designed to help meet your organization's needs for robust security, reliability, and user productivity.",
+      "iconUri": "https://conn-afd-prod-endpoint-bmc9bqahasf3grgk.b01.azurefd.net/releases/v1.0.1788/1.0.1788.4524/office365/icon.png",
+      "brandColor": "#0078D4",
+      "category": "Standard",
+      "id": "/subscriptions/00f9e387-4d2a-4d2d-8113-785d5827878f/providers/Microsoft.Web/locations/westus/managedApis/office365",
+      "type": "Microsoft.Web/locations/managedApis"
+    },
+    "testLinks": [
+      {
+        "requestUri": "https://management.azure.com:443/subscriptions/00f9e387-4d2a-4d2d-8113-785d5827878f/resourceGroups/mcp-connectors/providers/Microsoft.Web/connections/office365/extensions/proxy/testconnection?api-version=2016-06-01",
+        "method": "get"
+      }
+    ],
+    "testRequests": [
+      {
+        "body": {
+          "request": {
+            "method": "get",
+            "path": "testconnection"
+          }
+        },
+        "requestUri": "https://management.azure.com:443/subscriptions/00f9e387-4d2a-4d2d-8113-785d5827878f/resourceGroups/mcp-connectors/providers/Microsoft.Web/connections/office365/dynamicInvoke?api-version=2016-06-01",
+        "method": "POST"
+      }
+    ]
+  },
+  "id": "/subscriptions/00f9e387-4d2a-4d2d-8113-785d5827878f/resourceGroups/mcp-connectors/providers/Microsoft.Web/connections/office365",
+  "name": "office365",
+  "type": "Microsoft.Web/connections",
+  "location": "westus"
+}
