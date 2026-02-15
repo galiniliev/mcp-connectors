@@ -10,6 +10,15 @@ jest.mock("../src/logger", () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 
+jest.mock("../src/tools/dynamicTools", () => ({
+  registerDynamicTools: jest.fn().mockResolvedValue({ registered: 0, skipped: 0, errors: 0 }),
+  registerToolsForConnection: jest.fn().mockResolvedValue({ registered: 0, skipped: 0, errors: 0 }),
+}));
+
+jest.mock("../src/tools/metaTools", () => ({
+  configureMetaTools: jest.fn(),
+}));
+
 // Capture tool registrations via a fake McpServer
 const toolHandlers: Record<string, Function> = {};
 const mockServer = {
@@ -38,8 +47,8 @@ describe("configureAllTools", () => {
     for (const key of Object.keys(toolHandlers)) delete toolHandlers[key];
   });
 
-  it("registers tools by calling configureManagedApiTools and configureConnectionTools", () => {
-    configureAllTools(mockServer as any, tokenProvider, armContext, userAgentProvider);
+  it("registers tools by calling configureManagedApiTools and configureConnectionTools", async () => {
+    await configureAllTools(mockServer as any, tokenProvider, armContext, userAgentProvider);
     const registeredNames = mockServer.tool.mock.calls.map((c: any[]) => c[0]);
     expect(registeredNames).toContain("list_managed_apis");
     expect(registeredNames).toContain("put_connection");

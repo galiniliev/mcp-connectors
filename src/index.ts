@@ -63,10 +63,10 @@ async function main() {
     version: packageVersion,
   });
 
-  const server = new McpServer({
-    name: "ARM Connections MCP Server",
-    version: packageVersion,
-  });
+  const server = new McpServer(
+    { name: "ARM Connections MCP Server", version: packageVersion },
+    { capabilities: { tools: { listChanged: true } } }
+  );
 
   const userAgentComposer = new UserAgentComposer(packageVersion);
   server.server.oninitialized = () => {
@@ -81,7 +81,7 @@ async function main() {
     location: argv.location,
   };
 
-  configureAllTools(server, authenticator, armContext, () => userAgentComposer.userAgent);
+  await configureAllTools(server, authenticator, armContext, () => userAgentComposer.userAgent);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

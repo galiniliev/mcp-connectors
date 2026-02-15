@@ -1,6 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { armRequest, ArmContext } from "../arm.js";
+import { registerToolsForConnection } from "./dynamicTools.js";
+import { logger } from "../logger.js";
 
 export function configureConnectionTools(
   server: McpServer,
@@ -40,8 +42,28 @@ export function configureConnectionTools(
           userAgent: userAgentProvider(),
         });
 
+        // Auto-register dynamic tools for the new API
+        let toolStats = { registered: 0, skipped: 0, errors: 0 };
+        try {
+          toolStats = await registerToolsForConnection(
+            server, result, tokenProvider, armContext, userAgentProvider
+          );
+        } catch (toolError) {
+          logger.warn(`Auto-registration failed for ${connectionName}`, { toolError });
+        }
+
+        const response: Record<string, unknown> = {
+          connection: result,
+        };
+        if (toolStats.registered > 0) {
+          response.dynamicTools = {
+            message: `${toolStats.registered} new tools registered for ${managedApiName}`,
+            registered: toolStats.registered,
+          };
+        }
+
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }],
         };
       } catch (error) {
         const msg = error instanceof Error ? error.message : "Unknown error";
