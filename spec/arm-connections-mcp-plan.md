@@ -180,11 +180,13 @@ Also: expose `server` metadata (name/version/icons).
 **ARM call:**  
 `GET /subscriptions/{subscriptionId}/providers/Microsoft.Web/locations/{location}/managedApis?api-version=2016-06-01`
 
-Returned payload includes managed API entries (name/type/id/properties), which you'll return as-is (or lightly shaped) to the client.
+Returned payload includes managed API entries (name/type/id/properties). The tool filters and returns only the connector names.
 
 **Implementation:**
 - Inputs: `{ subscriptionId, location }`
-- Output: list of `{ name, id, location, properties.generalInformation }` (shaped for readability)
+- Output: list of connector **names only** (string array), e.g. `["office365", "teams", "sharepointonline", ...]`
+- **Filtering:** return only **Microsoft (first-party) APIs** by default — filter to entries whose `properties.metadata.source` is `"marketplace"` with `properties.metadata.brandColor` present, or more reliably, exclude entries where `properties.generalInformation.provider` is not Microsoft. If the API response does not expose a reliable provider field, use a curated allowlist of known Microsoft connector names as the initial filter.
+- Rationale: the full managed API list includes hundreds of third-party connectors that add noise; starting with Microsoft-only keeps the output focused and useful for common scenarios (Teams, Office 365, SharePoint, Outlook, OneDrive, etc.)
 
 ### Tool 2: `getConnectorSchema`
 
