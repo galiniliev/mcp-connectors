@@ -175,10 +175,11 @@ describe("fetchApiSchema", () => {
 
   it("returns swagger from result.properties.swagger", async () => {
     const swagger = makeSwagger();
-    mockArmRequest.mockResolvedValue({ properties: { swagger } });
+    const armResponse = { properties: { swagger } };
+    mockArmRequest.mockResolvedValue(armResponse);
 
     const result = await fetchApiSchema("office365", armContext, "test-token", "TestAgent/1.0");
-    expect(result).toEqual(swagger);
+    expect(result).toEqual(armResponse);
     expect(mockArmRequest).toHaveBeenCalledWith(
       "GET",
       "/subscriptions/sub-123/providers/Microsoft.Web/locations/westus/managedApis/office365",
@@ -189,17 +190,18 @@ describe("fetchApiSchema", () => {
 
   it("caches on second call", async () => {
     const swagger = makeSwagger();
-    mockArmRequest.mockResolvedValue({ properties: { swagger } });
+    const armResponse = { properties: { swagger } };
+    mockArmRequest.mockResolvedValue(armResponse);
 
     await fetchApiSchema("office365", armContext, "test-token", "TestAgent/1.0");
     const result2 = await fetchApiSchema("office365", armContext, "test-token", "TestAgent/1.0");
 
-    expect(result2).toEqual(swagger);
+    expect(result2).toEqual(armResponse);
     expect(mockArmRequest).toHaveBeenCalledTimes(1);
   });
 
   it("returns null if no swagger", async () => {
-    mockArmRequest.mockResolvedValue({ properties: {} });
+    mockArmRequest.mockResolvedValue(null);
 
     const result = await fetchApiSchema("noschema", armContext, "test-token", "TestAgent/1.0");
     expect(result).toBeNull();
@@ -224,9 +226,9 @@ describe("registerDynamicTools", () => {
         ],
       })
       // schema fetch for office365
-      .mockResolvedValueOnce({ properties: { swagger } })
+      .mockResolvedValueOnce(swagger)
       // schema fetch for teams
-      .mockResolvedValueOnce({ properties: { swagger } });
+      .mockResolvedValueOnce(swagger);
 
     const stats = await registerDynamicTools(
       mockServer as any,
@@ -270,7 +272,7 @@ describe("registerDynamicTools", () => {
       // schema fetch for badapi fails
       .mockRejectedValueOnce(new Error("schema fetch failed"))
       // schema fetch for goodapi succeeds
-      .mockResolvedValueOnce({ properties: { swagger: makeSwagger() } });
+      .mockResolvedValueOnce(makeSwagger());
 
     const stats = await registerDynamicTools(
       mockServer as any,
@@ -321,7 +323,6 @@ describe("invokeDynamicTool", () => {
           request: {
             method: "GET",
             path: "/v2/Mail/msg-1",
-            headers: { "Content-Type": "application/json" },
           },
         },
         userAgent: "TestAgent/1.0",
@@ -459,7 +460,7 @@ describe("registerToolsForConnection", () => {
 
   it("registers tools for a new connection", async () => {
     const connResponse = makeArmConnectionResponse("office365", "office365");
-    mockArmRequest.mockResolvedValueOnce({ properties: { swagger: makeSwagger() } });
+    mockArmRequest.mockResolvedValueOnce(makeSwagger());
 
     const stats = await registerToolsForConnection(
       mockServer as any,
