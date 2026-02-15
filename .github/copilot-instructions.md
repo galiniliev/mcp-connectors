@@ -14,7 +14,7 @@ An MCP (Model Context Protocol) server for managing Azure API connections via AR
 ## Architecture
 
 - **Transport:** stdio (MCP protocol on stdout, logging on stderr via Winston)
-- **Auth (`src/auth.ts`):** Reuses the ADO MCP public clientId (`0d50963b-7bb9-4fe7-94c7-a99af00b5136`) with scope `https://management.azure.com/.default`. Four modes: `interactive` (MSAL browser OAuth), `azcli` (AzureCliCredential), `env` (DefaultAzureCredential), `envvar` (raw token from `ARM_MCP_AUTH_TOKEN`)
+- **Auth (`src/auth.ts`):** Reuses the Azure MCP public clientId (`1950a258-227b-4e31-a9cf-717495945fc2`) with scope `https://management.azure.com/.default`. Four modes: `interactive` (MSAL browser OAuth), `azcli` (AzureCliCredential), `env` (DefaultAzureCredential), `envvar` (raw token from `ARM_MCP_AUTH_TOKEN`)
 - **ARM client (`src/arm.ts`):** Thin `fetch` wrapper against `https://management.azure.com` with retry (429/5xx), error shaping, default api-version `2016-06-01`
 - **CLI (`src/index.ts`):** yargs-based. Required: `--subscriptionId`, `--resourceGroup`. Default: `--location westus`
 - **Tools (`src/tools/`):** Each file exports a `configure*Tools(server, tokenProvider, armContext, userAgentProvider)` function that registers tools via `server.tool(name, description, zodSchema, handler)`

@@ -151,7 +151,7 @@ describe("createAuthenticator", () => {
     createAuthenticator("interactive", "my-tenant-id");
     expect(MockPublicClientApplication).toHaveBeenCalledWith({
       auth: {
-        clientId: "0d50963b-7bb9-4fe7-94c7-a99af00b5136",
+        clientId: "1950a258-227b-4e31-a9cf-717495945fc2",
         authority: "https://login.microsoftonline.com/my-tenant-id",
       },
     });
@@ -162,7 +162,7 @@ describe("createAuthenticator", () => {
     createAuthenticator("interactive", "00000000-0000-0000-0000-000000000000");
     expect(MockPublicClientApplication).toHaveBeenCalledWith({
       auth: {
-        clientId: "0d50963b-7bb9-4fe7-94c7-a99af00b5136",
+        clientId: "1950a258-227b-4e31-a9cf-717495945fc2",
         authority: "https://login.microsoftonline.com/common",
       },
     });

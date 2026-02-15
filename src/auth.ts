@@ -4,7 +4,7 @@ import open from "open";
 import { logger } from "./logger.js";
 
 const scopes = ["https://management.azure.com/.default"];
-const clientId = "0d50963b-7bb9-4fe7-94c7-a99af00b5136";
+const clientId = "1950a258-227b-4e31-a9cf-717495945fc2";
 const defaultAuthority = "https://login.microsoftonline.com/common";
 
 export type AuthType = "interactive" | "azcli" | "env" | "envvar";
