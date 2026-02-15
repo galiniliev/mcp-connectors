@@ -2,6 +2,8 @@
 
 An MCP (Model Context Protocol) server for managing Azure API connections via Azure Resource Manager (ARM).
 
+[Azure connectors](https://learn.microsoft.com/en-us/connectors/) provide a way to access data, services, and actions across hundreds of Microsoft and third-party applications — including Office 365, Teams, SQL Server, and more. This server exposes those connector management capabilities as MCP tools, enabling AI assistants to create, configure, and authenticate API connections on your behalf.
+
 ## Features
 
 - **List Managed APIs** — Enumerate available API connectors (Office 365, Teams, SQL, etc.) for a region
