@@ -280,7 +280,6 @@ export async function invokeDynamicTool(
       path: invokePath,
     };
     if (body && Object.keys(body).length > 0) {
-      request.headers = { "Content-Type": "application/json" };
       request.body = body;
     }
     if (Object.keys(queries).length > 0) {
