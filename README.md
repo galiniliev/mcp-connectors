@@ -72,7 +72,7 @@ Add to your project's `mcp.json`:
     "armConnections": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "mcp-connections", "--subscriptionId", "${input:azure_subscription}", "--resourceGroup", "${input:azure_rg}"],
+      "args": ["-y", "@galin.iliev/mcp-connections", "--subscriptionId", "${input:azure_subscription}", "--resourceGroup", "${input:azure_rg}"],
       "env": { "LOG_LEVEL": "debug" }
     }
   }
